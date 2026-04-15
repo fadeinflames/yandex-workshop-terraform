@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terraform + Yandex Cloud Workshop</title>
+<style>
+  /* ===== RESET & BASE ===== */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0f0f1a;
+    --bg-slide: #16162a;
+    --accent:   #7b61ff;
+    --accent2:  #00d4aa;
+    --text:     #e8e6f0;
+    --muted:    #8888aa;
+    --code-bg:  #1e1e36;
+    --code-border: #2d2d50;
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Menlo', monospace;
+  }
+
+  html { font-size: 18px; }
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+    height: 100vh;
+  }
+
+  /* ===== SLIDE ENGINE ===== */
+  .deck {
+    position: fixed;
+    inset: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .slide {
+    display: none;
+    flex-direction: column;
+    justify-content: flex-start;
+    min-height: 100vh;
+    padding: 3rem 6rem 4rem;
+    opacity: 0;
+    transition: opacity 0.35s ease;
+  }
+  .slide.active {
+    display: flex;
+    opacity: 1;
+  }
+
+  /* ===== TYPOGRAPHY ===== */
+  h1 {
+    font-size: 2.6rem;
+    font-weight: 800;
+    margin-bottom: 1.2rem;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1.2;
+  }
+  h2 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--accent2);
+    margin: 1.2rem 0 0.6rem;
+  }
+  h3 {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--accent);
+    margin: 0.8rem 0 0.4rem;
+  }
+  p, li {
+    font-size: 1.15rem;
+    line-height: 1.7;
+    color: var(--text);
+  }
+  ul, ol {
+    margin: 0.5rem 0 0.5rem 1.5rem;
+  }
+  li { margin-bottom: 0.35rem; }
+  li::marker { color: var(--accent); }
+
+  strong { color: #fff; font-weight: 700; }
+  em { color: var(--accent2); font-style: normal; }
+
+  /* ===== CODE BLOCKS ===== */
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: 10px;
+    padding: 1.2rem 1.5rem;
+    margin: 0.8rem 0;
+    overflow-x: auto;
+    font-size: 0.92rem;
+    line-height: 1.6;
+  }
+  code {
+    font-family: var(--mono);
+    color: var(--accent2);
+  }
+  pre code { color: var(--text); }
+
+  /* Syntax highlights */
+  .kw  { color: #c792ea; }
+  .str { color: #c3e88d; }
+  .cm  { color: #546e7a; }
+  .fn  { color: #82aaff; }
+  .num { color: #f78c6c; }
+  .op  { color: #89ddff; }
+  .var { color: #ffcb6b; }
+
+  /* ===== TABLES ===== */
+  table {
+    border-collapse: collapse;
+    margin: 0.8rem 0;
+    width: 100%;
+  }
+  th, td {
+    padding: 0.5rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid var(--code-border);
+    font-size: 1.05rem;
+  }
+  th {
+    color: var(--accent);
+    font-weight: 700;
+    border-bottom: 2px solid var(--accent);
+  }
+
+  /* ===== SPOILER ===== */
+  .spoiler {
+    margin: 0.8rem 0;
+    border: 1px solid var(--code-border);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--code-bg);
+  }
+  .spoiler-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.8rem 1.2rem;
+    background: transparent;
+    border: none;
+    color: var(--accent);
+    font-family: var(--font);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.2s;
+  }
+  .spoiler-toggle:hover {
+    background: rgba(123, 97, 255, 0.1);
+  }
+  .spoiler-arrow {
+    display: inline-block;
+    transition: transform 0.25s ease;
+    font-size: 0.8rem;
+  }
+  .spoiler.open .spoiler-arrow {
+    transform: rotate(90deg);
+  }
+  .spoiler-body {
+    display: none;
+    padding: 0 1.2rem 1rem;
+  }
+  .spoiler.open .spoiler-body {
+    display: block;
+  }
+  .spoiler-body pre {
+    margin: 0.4rem 0;
+    border: 1px solid #2a2a48;
+  }
+  .spoiler-level {
+    display: inline-block;
+    padding: 0.1rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    margin-left: auto;
+  }
+  .spoiler-level-hint {
+    background: rgba(0, 212, 170, 0.15);
+    color: var(--accent2);
+  }
+  .spoiler-level-solution {
+    background: rgba(255, 85, 85, 0.15);
+    color: #ff5555;
+  }
+
+  /* ===== SPECIAL SLIDES ===== */
+  .slide.title-slide {
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+  }
+  .slide.title-slide h1 {
+    font-size: 3.5rem;
+    margin-bottom: 0.5rem;
+  }
+  .slide.title-slide h2 {
+    font-size: 1.8rem;
+    color: var(--muted);
+    font-weight: 400;
+  }
+
+  .slide.demo-slide {
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    background: radial-gradient(ellipse at center, #1a1a3a 0%, var(--bg) 70%);
+  }
+  .slide.demo-slide h1 { font-size: 3rem; }
+  .slide.demo-slide p {
+    font-size: 1.5rem;
+    color: var(--muted);
+    margin-top: 1rem;
+  }
+
+  .slide.task-slide {
+    border-left: 4px solid var(--accent2);
+    padding-bottom: 6rem;
+  }
+  .slide.task-slide h1 {
+    background: linear-gradient(135deg, var(--accent2), #00ffcc);
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 0.2rem 0.7rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin-left: 0.5rem;
+    vertical-align: middle;
+  }
+  .badge-time {
+    background: var(--accent);
+    color: #fff;
+  }
+  .badge-warn {
+    background: #ff5555;
+    color: #fff;
+  }
+
+  /* ===== TWO COLUMNS ===== */
+  .columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin-top: 0.5rem;
+  }
+
+  /* ===== FLOW DIAGRAM ===== */
+  .flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin: 1.5rem 0;
+    font-family: var(--mono);
+    font-size: 1.1rem;
+    flex-wrap: wrap;
+  }
+  .flow-box {
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: 8px;
+    padding: 0.6rem 1.2rem;
+    text-align: center;
+  }
+  .flow-box strong { display: block; color: var(--accent); font-size: 0.85rem; }
+  .flow-arrow { color: var(--accent2); font-size: 1.5rem; }
+
+  /* ===== SYMBOL TABLE ===== */
+  .sym { font-family: var(--mono); font-weight: 700; font-size: 1.3rem; }
+  .sym-add { color: #50fa7b; }
+  .sym-del { color: #ff5555; }
+  .sym-mod { color: #ffb86c; }
+  .sym-rep { color: #ff79c6; }
+
+  /* ===== PROGRESS BAR ===== */
+  .progress {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    transition: width 0.3s ease;
+    z-index: 100;
+  }
+
+  /* ===== SLIDE NUMBER ===== */
+  .slide-num {
+    position: fixed;
+    bottom: 1rem;
+    right: 1.5rem;
+    font-size: 0.85rem;
+    color: var(--muted);
+    font-family: var(--mono);
+    z-index: 100;
+  }
+
+  /* ===== NAV HINT ===== */
+  .nav-hint {
+    position: fixed;
+    bottom: 1rem;
+    left: 1.5rem;
+    font-size: 0.75rem;
+    color: var(--muted);
+    opacity: 0.5;
+    z-index: 100;
+  }
+
+  /* ===== CONCEPT CARDS ===== */
+  .concepts {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+  .concept-card {
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    border-top: 3px solid var(--accent);
+  }
+  .concept-card h3 {
+    margin: 0 0 0.3rem;
+    font-size: 1.05rem;
+  }
+  .concept-card p {
+    font-size: 0.95rem;
+    color: var(--muted);
+    margin: 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="deck" id="deck">
+
+<!-- ======================== SLIDE 1: TITLE ======================== -->
+<div class="slide title-slide active">
+  <h1>Terraform + Yandex Cloud</h1>
+  <h2>Workshop: Infrastructure as Code</h2>
+</div>
+
+<!-- ======================== SLIDE 1.5: ABOUT SPEAKER ======================== -->
+<div class="slide">
+  <h1>О спикере</h1>
+  <div class="columns">
+    <div>
+      <h2 style="color:var(--accent);margin-bottom:0.2em;">Максим Гусев</h2>
+      <p style="color:var(--muted);font-family:var(--mono);font-size:0.9rem;margin-bottom:1em;">SRE Team Lead @ RWB</p>
+      <ul>
+        <li>11+ лет строю отказоустойчивые системы в IT</li>
+        <li>Фокус: искоренение тойла, observability, incident-management</li>
+        <li>Путь: от инженера по замене бумаги в принтере — до Lead SRE в финтехе и Dodo Engineering</li>
+      </ul>
+      <p style="margin-top:1em;font-family:var(--mono);font-size:0.75rem;color:var(--muted);">
+        Terraform · Kubernetes · Prometheus · Vagrant · Incident Management
+      </p>
+    </div>
+    <div>
+      <div style="background:var(--code-bg);border:1px solid var(--code-border);border-radius:8px;padding:1em;margin-bottom:0.8em;">
+        <div style="font-family:var(--mono);font-size:0.7rem;letter-spacing:0.1em;color:var(--accent2);margin-bottom:0.5em;">ЧЕМ ЗАНИМАЮСЬ СЕЙЧАС</div>
+        <ul style="font-size:0.85rem;">
+          <li>Строю SRE-практику в <strong>RWB</strong></li>
+          <li>Reliability, on-call культура, SLO/SLI/Error Budget</li>
+          <li>Автоматизация и снижение операционной нагрузки</li>
+        </ul>
+      </div>
+      <div style="background:var(--code-bg);border:1px solid var(--code-border);border-radius:8px;padding:1em;">
+        <div style="font-family:var(--mono);font-size:0.7rem;letter-spacing:0.1em;color:var(--accent);margin-bottom:0.5em;">ГЛАВНЫЕ ИНТЕРЕСЫ</div>
+        <ul style="font-size:0.85rem;">
+          <li>Observability: метрики, трейсы, логи как единая система</li>
+          <li>Incident management и постмортемы без обвинений</li>
+          <li>Инфраструктура как фундамент надёжности</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ======================== SLIDE 2: WHY IaC ======================== -->
+<div class="slide">
+  <h1>Зачем Infrastructure as Code?</h1>
+  <div class="columns">
+    <div>
+      <h2>Без IaC</h2>
+      <ul>
+        <li>Кликаем в консоли</li>
+        <li>"А кто это создал?"</li>
+        <li>"Какие настройки у прода?"</li>
+        <li>Документация устарела на следующий день</li>
+      </ul>
+    </div>
+    <div>
+      <h2>С IaC</h2>
+      <ul>
+        <li>Код в git = <strong>документация</strong></li>
+        <li><strong>Code review</strong> для инфраструктуры</li>
+        <li>Воспроизводимость: <code>terraform apply</code></li>
+        <li><strong>История</strong> всех изменений</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ======================== SLIDE 3: WHAT IS TERRAFORM ======================== -->
+<div class="slide">
+  <h1>Что такое Terraform?</h1>
+  <ul>
+    <li><strong>Декларативный</strong> — описываем ЧТО хотим, не КАК</li>
+    <li><strong>Мульти-облачный</strong> — AWS, GCP, Yandex Cloud</li>
+    <li><strong>State</strong> — помнит что создал</li>
+    <li><strong>Plan</strong> — показывает что изменится ДО применения</li>
+  </ul>
+  <div class="flow">
+    <div class="flow-box"><strong>.tf файлы</strong>код</div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-box"><strong>plan</strong>что будет</div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-box"><strong>apply</strong>применить</div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-box"><strong>Облако</strong>ресурсы</div>
+  </div>
+</div>
+
+<!-- ======================== SLIDE 4: CONCEPTS ======================== -->
+<div class="slide">
+  <h1>Основные концепции</h1>
+  <div class="concepts">
+    <div class="concept-card">
+      <h3>Provider</h3>
+      <p>Подключение к облаку. Плагин, который умеет общаться с API.</p>
+    </div>
+    <div class="concept-card">
+      <h3>Resource</h3>
+      <p>Ресурс, который создаем: VM, сеть, диск.</p>
+    </div>
+    <div class="concept-card">
+      <h3>Variable</h3>
+      <p>Входной параметр. Как .env файл.</p>
+    </div>
+    <div class="concept-card">
+      <h3>Output</h3>
+      <p>Выходное значение. Как return в функции.</p>
+    </div>
+    <div class="concept-card">
+      <h3>Data Source</h3>
+      <p>Чтение того, что уже существует в облаке.</p>
+    </div>
+    <div class="concept-card">
+      <h3>State</h3>
+      <p>"Память" Terraform. Помнит что создал.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ======================== SLIDE 5: PROVIDER ======================== -->
+<div class="slide">
+  <h1>Provider — подключение к Yandex Cloud</h1>
+  <pre><code><span class="kw">terraform</span> {
+  <span class="kw">required_providers</span> {
+    <span class="fn">yandex</span> = {
+      <span class="kw">source</span> = <span class="str">"yandex-cloud/yandex"</span>
+    }
+  }
+}
+
+<span class="kw">provider</span> <span class="str">"yandex"</span> {
+  <span class="kw">token</span>     = <span class="var">var.yc_token</span>
+  <span class="kw">cloud_id</span>  = <span class="var">var.yc_cloud_id</span>
+  <span class="kw">folder_id</span> = <span class="var">var.yc_folder_id</span>
+  <span class="kw">zone</span>      = <span class="str">"ru-central1-a"</span>
+}</code></pre>
+</div>
+
+<!-- ======================== SLIDE 6: RESOURCES ======================== -->
+<div class="slide">
+  <h1>Resource — создаем ресурсы</h1>
+  <pre><code><span class="kw">resource</span> <span class="str">"yandex_vpc_network"</span> <span class="fn">"workshop"</span> {
+  <span class="kw">name</span> = <span class="str">"workshop-network"</span>
+}
+
+<span class="kw">resource</span> <span class="str">"yandex_vpc_subnet"</span> <span class="fn">"workshop"</span> {
+  <span class="kw">name</span>           = <span class="str">"workshop-subnet"</span>
+  <span class="kw">network_id</span>     = <span class="fn">yandex_vpc_network.workshop.id</span>  <span class="cm"># ссылка!</span>
+  <span class="kw">v4_cidr_blocks</span> = [<span class="str">"10.0.1.0/24"</span>]
+}</code></pre>
+  <p style="margin-top:1rem">Terraform сам определяет <strong>порядок создания</strong> по ссылкам между ресурсами.</p>
+</div>
+
+<!-- ======================== SLIDE 7: VM ======================== -->
+<div class="slide">
+  <h1>Виртуальная машина</h1>
+  <pre><code><span class="kw">resource</span> <span class="str">"yandex_compute_instance"</span> <span class="fn">"demo"</span> {
+  <span class="kw">name</span>        = <span class="str">"demo-vm"</span>
+  <span class="kw">platform_id</span> = <span class="str">"standard-v3"</span>
+
+  <span class="kw">resources</span> {
+    <span class="kw">cores</span>  = <span class="num">2</span>
+    <span class="kw">memory</span> = <span class="num">2</span>
+  }
+
+  <span class="kw">boot_disk</span> {
+    <span class="kw">initialize_params</span> {
+      <span class="kw">image_id</span> = <span class="str">"fd8jr9omc57n4c6hev20"</span>
+    }
+  }
+
+  <span class="kw">network_interface</span> {
+    <span class="kw">subnet_id</span> = <span class="fn">yandex_vpc_subnet.workshop.id</span>
+    <span class="kw">nat</span>       = <span class="num">true</span>   <span class="cm"># внешний IP</span>
+  }
+}</code></pre>
+</div>
+
+<!-- ======================== SLIDE 8: WORKFLOW ======================== -->
+<div class="slide">
+  <h1>Рабочий цикл</h1>
+  <pre><code><span class="fn">terraform init</span>      <span class="cm"># 1. Скачать провайдер</span>
+<span class="fn">terraform plan</span>      <span class="cm"># 2. Посмотреть что будет</span>
+<span class="fn">terraform apply</span>     <span class="cm"># 3. Применить (спросит yes)</span></code></pre>
+
+  <h2 style="margin-top:1.5rem">Символы в plan</h2>
+  <table>
+    <tr><th>Символ</th><th>Значение</th></tr>
+    <tr><td><span class="sym sym-add">+</span></td><td>Ресурс будет создан</td></tr>
+    <tr><td><span class="sym sym-del">-</span></td><td>Ресурс будет удален</td></tr>
+    <tr><td><span class="sym sym-mod">~</span></td><td>Изменение на месте (update in-place)</td></tr>
+    <tr><td><span class="sym sym-rep">-/+</span></td><td>Пересоздание (destroy + create)</td></tr>
+    <tr><td><span class="sym" style="color:var(--accent2)">&lt;=</span></td><td>Чтение (data source — вычитывает данные из облака)</td></tr>
+  </table>
+</div>
+
+<!-- ======================== SLIDE 9: DEMO 1 ======================== -->
+<div class="slide demo-slide">
+  <h1>ДЕМО</h1>
+  <p>Создаем виртуальную машину</p>
+  <p style="font-size:1rem; color:var(--muted); margin-top:0.5rem">terraform init &rarr; plan &rarr; apply</p>
+</div>
+
+<!-- ======================== SLIDE 10: TASK 1 ======================== -->
+<div class="slide task-slide">
+  <h1>Задание 1: Веб-сервер с nginx <span class="badge badge-time">15 мин</span></h1>
+  <p>Возьмите готовый файл из <code>students/block-1/</code>.<br>
+  Добавьте <strong>cloud-init</strong> чтобы nginx ставился автоматически.<br>
+  По внешнему IP должна открываться страница.</p>
+
+  <div class="spoiler">
+    <button class="spoiler-toggle" onclick="this.parentElement.classList.toggle('open')">
+      <span class="spoiler-arrow">&#9654;</span> Подсказка: что такое cloud-init?
+      <span class="spoiler-level spoiler-level-hint">hint</span>
+    </button>
+    <div class="spoiler-body">
+      <p><code>user-data</code> в metadata — скрипт, который выполняется при первом запуске VM. Формат: YAML с заголовком <code>#cloud-config</code>.</p>
+    </div>
+  </div>
+
+  <div class="spoiler">
+    <button class="spoiler-toggle" onclick="this.parentElement.classList.toggle('open')">
+      <span class="spoiler-arrow">&#9654;</span> Подсказка: нет внешнего IP?
+      <span class="spoiler-level spoiler-level-hint">hint</span>
+    </button>
+    <div class="spoiler-body">
+      <p>В <code>network_interface</code> нужно <code>nat = true</code> — это включает NAT и выдает внешний IP.</p>
+    </div>
+  </div>
+
+  <div class="spoiler">
+    <button class="spoiler-toggle" onclick="this.parentElement.classList.toggle('open')">
+      <span class="spoiler-arrow">&#9654;</span> Решение: metadata с cloud-init
+      <span class="spoiler-level spoiler-level-solution">solution</span>
+    </button>
+    <div class="spoiler-body">
+      <pre><code><span class="kw">metadata</span> = {
+  <span class="kw">ssh-keys</span>  = <span class="str">"ubuntu:${file("~/.ssh/id_rsa.pub")}"</span>
+  <span class="kw">user-data</span> = <span class="op">&lt;&lt;-EOF</span>
+    <span class="cm">#cloud-config</span>
+    <span class="kw">package_update</span>: <span class="num">true</span>
+    <span class="kw">packages</span>:
+      - <span class="str">nginx</span>
+    <span class="kw">runcmd</span>:
+      - systemctl enable nginx
+      - systemctl start nginx
+  <span class="op">EOF</span>
+}</code></pre>
+    </div>
+  </div>
+</div>
+
+<!-- ======================== SLIDE 11: MODIFYING ======================== -->
+<div class="slide">
+  <h1>Изменение инфраструктуры</h1>
+  <p>Terraform не пересоздает все с нуля!</p>
+
+  <pre><code><span class="kw">resource</span> <span class="str">"yandex_compute_instance"</span> <span class="fn">"demo"</span> {
+  <span class="kw">allow_stopping_for_update</span> = <span class="num">true</span>  <span class="cm"># разрешаем stop/start</span>
+
+  <span class="kw">resources</span> {
+    <span class="kw">cores</span>  = <span class="num">2</span>
+    <span class="kw">memory</span> = <span class="num">4</span>   <span class="cm"># было 2, стало 4</span>
+  }
+}</code></pre>
+
+  <pre><code><span class="fn">terraform plan</span>
+<span class="cm"># <span class="sym-mod">~</span> yandex_compute_instance.demo</span>
+<span class="cm">#     memory: 2 <span class="sym-mod">-></span> 4</span></code></pre>
+
+  <p><strong>Update in-place</strong> — меняет параметр без пересоздания VM.</p>
+  <p style="color:var(--muted)">Смена CPU/RAM требует стопа VM — нужен <code>allow_stopping_for_update = true</code>.</p>
+  <p style="color:var(--muted)">Но если сменить <code>image_id</code> — будет <span class="sym sym-rep">-/+</span> пересоздание!</p>
+</div>
+
+<!-- ======================== SLIDE 12: TASK 2 ======================== -->
+<div class="slide task-slide">
+  <h1>Задание 2: Модификация <span class="badge badge-time">15 мин</span></h1>
+  <ol>
+    <li>Увеличить RAM до <strong>4 GB</strong></li>
+    <li>Добавить дополнительный <strong>диск 5 GB</strong></li>
+    <li>Создать <strong>Security Group</strong> (SSH + HTTP + HTTPS)</li>
+    <li>Привязать SG к сетевому интерфейсу VM</li>
+  </ol>
+
+  <div class="spoiler">
+    <button class="spoiler-toggle" onclick="this.parentElement.classList.toggle('open')">
+      <span class="spoiler-arrow">&#9654;</span> Подсказка: как привязать SG к VM?
+      <span class="spoiler-level spoiler-level-hint">hint</span>
+    </button>
+    <div class="spoiler-body">
+      <pre><code><span class="kw">network_interface</span> {
+  <span class="kw">subnet_id</span>          = ...
+  <span class="kw">nat</span>                = <span class="num">true</span>
+  <span class="kw">security_group_ids</span> = [<span class="fn">yandex_vpc_security_group.web_sg.id</span>]
+}</code></pre>
+    </div>
+  </div>
+
+  <div class="spoiler">
+    <button class="spoiler-toggle" onclick="this.parentElement.classList.toggle('open')">
+      <span class="spoiler-arrow">&#9654;</span> Подсказка: egress для ANY протокола
+      <span class="spoiler-level spoiler-level-hint">hint</span>
+    </button>
+    <div class="spoiler-body">
+      <p>Для исходящего трафика без ограничений не указывайте порт:</p>
+      <pre><code><span class="kw">egress</span> {
+  <span class="kw">protocol</span>       = <span class="str">"ANY"</span>
+  <span class="kw">v4_cidr_blocks</span> = [<span class="str">"0.0.0.0/0"</span>]
+}</code></pre>
+    </div>
+  </div>
+
+  <div class="spoiler">
+    <button class="spoiler-toggle" onclick="this.parentElement.classList.toggle('open')">
+      <span class="spoiler-arrow">&#9654;</span> Решение: полная Security Group
+      <span class="spoiler-level spoiler-level-solution">solution</span>
+    </button>
+    <div class="spoiler-body">
+      <pre><code><span class="kw">resource</span> <span class="str">"yandex_vpc_security_group"</span> <span class="fn">"web_sg"</span> {
+  <span class="kw">name</span>       = <span class="str">"web-security-group"</span>
+  <span class="kw">network_id</span> = <span class="fn">yandex_vpc_network.workshop.id</span>
+
+  <span class="kw">ingress</span> {
+    <span class="kw">protocol</span> = <span class="str">"TCP"</span>
+    <span class="kw">port</span>     = <span class="num">22</span>
+    <span class="kw">v4_cidr_blocks</span> = [<span class="str">"0.0.0.0/0"</span>]
+  }
+  <span class="kw">ingress</span> {
+    <span class="kw">protocol</span> = <span class="str">"TCP"</span>
+    <span class="kw">port</span>     = <span class="num">80</span>
+    <span class="kw">v4_cidr_blocks</span> = [<span class="str">"0.0.0.0/0"</span>]
+  }
+  <span class="kw">ingress</span> {
+    <span class="kw">protocol</span> = <span class="str">"TCP"</span>
+    <span class="kw">port</span>     = <span class="num">443</span>
+    <span class="kw">v4_cidr_blocks</span> = [<span class="str">"0.0.0.0/0"</span>]
+  }
+  <span class="kw">egress</span> {
+    <span class="kw">protocol</span>       = <span class="str">"ANY"</span>
+    <span class="kw">v4_cidr_blocks</span> = [<span class="str">"0.0.0.0/0"</span>]
+  }
+}</code></pre>
+    </div>
+  </div>
+</div>
+
+<!-- ======================== SLIDE 13: ADDING RESOURCES (разбор решения) ======================== -->
+<div class="slide">
+  <h1>Разбор: дополнительный диск</h1>
+  <pre><code><span class="cm"># Дополнительный диск</span>
+<span class="kw">resource</span> <span class="str">"yandex_compute_disk"</span> <span class="fn">"data"</span> {
+  <span class="kw">name</span> = <span class="str">"data-disk"</span>
+  <span class="kw">size</span> = <span class="num">5</span>
+  <span class="kw">type</span> = <span class="str">"network-hdd"</span>
+}</code></pre>
+  <pre><code><span class="cm"># Привязка к VM (внутри yandex_compute_instance)</span>
+<span class="kw">secondary_disk</span> {
+  <span class="kw">disk_id</span>     = <span class="fn">yandex_compute_disk.data.id</span>
+  <span class="kw">auto_delete</span> = <span class="num">true</span>
+}</code></pre>
+</div>
+
+<!-- ======================== SLIDE 14: SECURITY GROUPS (разбор решения) ======================== -->
+<div class="slide">
+  <h1>Разбор: Security Groups</h1>
+  <pre><code><span class="kw">resource</span> <span class="str">"yandex_vpc_security_group"</span> <span class="fn">"web_sg"</span> {
+  <span class="kw">network_id</span> = <span class="fn">yandex_vpc_network.workshop.id</span>
+
+  <span class="kw">ingress</span> {
+    <span class="kw">protocol</span>       = <span class="str">"TCP"</span>
+    <span class="kw">port</span>           = <span class="num">80</span>
+    <span class="kw">v4_cidr_blocks</span> = [<span class="str">"0.0.0.0/0"</span>]
+  }
+
+  <span class="kw">egress</span> {
+    <span class="kw">protocol</span>       = <span class="str">"ANY"</span>
+    <span class="kw">v4_cidr_blocks</span> = [<span class="str">"0.0.0.0/0"</span>]
+  }
+}</code></pre>
+</div>
+
+<!-- ======================== SLIDE 15: DEMO 2 ======================== -->
+<div class="slide demo-slide">
+  <h1>ДЕМО</h1>
+  <p>Изменяем инфраструктуру</p>
+  <p style="font-size:1rem; color:var(--muted); margin-top:0.5rem">memory 2&rarr;4, + disk, + labels</p>
+</div>
+
+<!-- ======================== SLIDE 16: DATA SOURCES ======================== -->
+<div class="slide">
+  <h1>Data Sources</h1>
+  <p>Читаем то, что <strong>уже существует</strong> в облаке:</p>
+  <pre><code><span class="kw">data</span> <span class="str">"yandex_compute_image"</span> <span class="fn">"ubuntu"</span> {
+  <span class="kw">family</span> = <span class="str">"ubuntu-2204-lts"</span>
+}
+
+<span class="cm"># Использование:</span>
+<span class="kw">image_id</span> = <span class="fn">data.yandex_compute_image.ubuntu.id</span></code></pre>
+
+  <div class="columns" style="margin-top:1.5rem">
+    <div style="text-align:center">
+      <h3><code>resource</code></h3>
+      <p><strong>создает</strong> ресурс</p>
+    </div>
+    <div style="text-align:center">
+      <h3><code>data</code></h3>
+      <p><strong>читает</strong> существующий</p>
+    </div>
+  </div>
+</div>
+
+<!-- ======================== SLIDE 17: OUTPUTS ======================== -->
+<div class="slide">
+  <h1>Outputs</h1>
+  <pre><code><span class="kw">output</span> <span class="str">"vm_external_ip"</span> {
+  <span class="kw">value</span> = <span class="fn">yandex_compute_instance.demo
+          .network_interface.0.nat_ip_address</span>
+}
+
+<span class="kw">output</span> <span class="str">"ssh_command"</span> {
+  <span class="kw">value</span> = <span class="str">"ssh ubuntu@${<span class="fn">...nat_ip_address</span>}"</span>
+}</code></pre>
+
+  <pre><code><span class="fn">terraform output</span>              <span class="cm"># все outputs</span>
+<span class="fn">terraform output</span> -raw ssh_cmd <span class="cm"># одно значение (для скриптов)</span></code></pre>
+  <p style="margin-top:0.5rem">Outputs — как <code>return</code> в функции. Можно передавать между модулями и в CI/CD.</p>
+</div>
+
+<!-- ======================== SLIDE 18: LIFECYCLE ======================== -->
+<div class="slide">
+  <h1>Lifecycle</h1>
+  <pre><code><span class="kw">lifecycle</span> {
+  <span class="cm"># Сначала создать новый, потом удалить старый</span>
+  <span class="kw">create_before_destroy</span> = <span class="num">true</span>
+
+  <span class="cm"># Запретить удаление (защита от terraform destroy)</span>
+  <span class="kw">prevent_destroy</span> = <span class="num">true</span>
+
+  <span class="cm"># Игнорировать внешние изменения</span>
+  <span class="kw">ignore_changes</span> = [<span class="fn">labels</span>, <span class="fn">metadata</span>]
+}</code></pre>
+</div>
+
+<!-- ======================== SLIDE 19: DEMO 3 ======================== -->
+<div class="slide demo-slide">
+  <h1>ДЕМО</h1>
+  <p>Outputs, Data Sources, Lifecycle</p>
+  <p style="font-size:1rem; color:var(--muted); margin-top:0.5rem">terraform output &middot; terraform state list &middot; terraform destroy</p>
+</div>
+
+<!-- ======================== SLIDE 20: TASK 3 ======================== -->
+<div class="slide task-slide">
+  <h1>Задание 3: Финальная сборка <span class="badge badge-time">15 мин</span></h1>
+  <ol>
+    <li>Заменить хардкод <code>image_id</code> на <strong>data source</strong></li>
+    <li>Добавить <strong>5 outputs</strong> (IP, ID, SSH-команда, URL)</li>
+    <li>Добавить <strong>lifecycle</strong>-правило</li>
+    <li>Проверить <code>terraform output</code></li>
+  </ol>
+
+  <div class="spoiler">
+    <button class="spoiler-toggle" onclick="this.parentElement.classList.toggle('open')">
+      <span class="spoiler-arrow">&#9654;</span> Подсказка: как получить IP из ресурса
+      <span class="spoiler-level spoiler-level-hint">hint</span>
+    </button>
+    <div class="spoiler-body">
+      <pre><code><span class="cm"># Внешний IP:</span>
+<span class="fn">yandex_compute_instance.web.network_interface.0.nat_ip_address</span>
+<span class="cm"># Внутренний IP:</span>
+<span class="fn">yandex_compute_instance.web.network_interface.0.ip_address</span>
+<span class="cm"># ID:</span>
+<span class="fn">yandex_compute_instance.web.id</span></code></pre>
+    </div>
+  </div>
+
+  <div class="spoiler">
+    <button class="spoiler-toggle" onclick="this.parentElement.classList.toggle('open')">
+      <span class="spoiler-arrow">&#9654;</span> Решение: outputs.tf
+      <span class="spoiler-level spoiler-level-solution">solution</span>
+    </button>
+    <div class="spoiler-body">
+      <pre><code><span class="kw">output</span> <span class="str">"vm_external_ip"</span> {
+  <span class="kw">value</span> = <span class="fn">yandex_compute_instance.web.network_interface.0.nat_ip_address</span>
+}
+<span class="kw">output</span> <span class="str">"vm_internal_ip"</span> {
+  <span class="kw">value</span> = <span class="fn">yandex_compute_instance.web.network_interface.0.ip_address</span>
+}
+<span class="kw">output</span> <span class="str">"vm_id"</span> {
+  <span class="kw">value</span> = <span class="fn">yandex_compute_instance.web.id</span>
+}
+<span class="kw">output</span> <span class="str">"ssh_command"</span> {
+  <span class="kw">value</span> = <span class="str">"ssh ubuntu@${yandex_compute_instance.web.network_interface.0.nat_ip_address}"</span>
+}
+<span class="kw">output</span> <span class="str">"web_url"</span> {
+  <span class="kw">value</span> = <span class="str">"http://${yandex_compute_instance.web.network_interface.0.nat_ip_address}"</span>
+}</code></pre>
+    </div>
+  </div>
+</div>
+
+<!-- ======================== SLIDE 21: DESTROY ======================== -->
+<div class="slide">
+  <h1>terraform destroy <span class="badge badge-warn">!</span></h1>
+  <pre><code><span class="fn">terraform destroy</span>
+<span class="cm"># Покажет ВСЕ ресурсы к удалению</span>
+<span class="cm"># Спросит yes</span></code></pre>
+
+  <h2 style="margin-top:2rem; color: #ff5555;">Удалите все ресурсы после воркшопа!</h2>
+  <p>Облако стоит денег. Проверьте в консоли YC, что ничего не осталось.</p>
+</div>
+
+<!-- ======================== SLIDE 22: WHAT'S NEXT ======================== -->
+<div class="slide">
+  <h1>Что дальше?</h1>
+  <div class="concepts">
+    <div class="concept-card">
+      <h3>Modules</h3>
+      <p>Переиспользуемые блоки инфраструктуры</p>
+    </div>
+    <div class="concept-card">
+      <h3>Remote State</h3>
+      <p>Хранение state в Object Storage</p>
+    </div>
+    <div class="concept-card">
+      <h3>Workspaces</h3>
+      <p>dev / staging / prod</p>
+    </div>
+    <div class="concept-card">
+      <h3>CI/CD</h3>
+      <p>Автоматический apply из пайплайна</p>
+    </div>
+    <div class="concept-card">
+      <h3>Terragrunt</h3>
+      <p>DRY для больших проектов</p>
+    </div>
+    <div class="concept-card">
+      <h3>Policy as Code</h3>
+      <p>Sentinel / OPA для контроля</p>
+    </div>
+  </div>
+</div>
+
+<!-- ======================== SLIDE 23: SUMMARY ======================== -->
+<div class="slide">
+  <h1>Итоги</h1>
+  <p>Сегодня мы научились:</p>
+  <ol>
+    <li>Описывать инфраструктуру <strong>кодом</strong></li>
+    <li>Создавать VM, сети, диски, security groups</li>
+    <li>Безопасно <strong>изменять</strong> существующие ресурсы</li>
+    <li>Использовать <strong>data sources</strong> и <strong>outputs</strong></li>
+    <li>Управлять <strong>жизненным циклом</strong> ресурсов</li>
+  </ol>
+  <p style="margin-top:2rem; font-size:1.4rem; text-align:center">
+    <strong>Infrastructure as Code = предсказуемость + контроль</strong>
+  </p>
+</div>
+
+<!-- ======================== SLIDE 24: THANKS ======================== -->
+<div class="slide title-slide">
+  <h1>Спасибо!</h1>
+  <h2>Материалы: <code>students/</code></h2>
+  <p style="margin-top:1rem; color:var(--muted)">Шпаргалка: <code>students/cheatsheet.md</code></p>
+</div>
+
+</div><!-- /deck -->
+
+<div class="progress" id="progress"></div>
+<div class="slide-num" id="slideNum"></div>
+<div class="nav-hint">&larr; &rarr; стрелки &middot; пробел &middot; клик на спойлер раскрывает решение</div>
+
+<script>
+(function() {
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+  let current = 0;
+
+  function show(n) {
+    slides[current].classList.remove('active');
+    current = Math.max(0, Math.min(n, total - 1));
+    slides[current].classList.add('active');
+    document.getElementById('deck').scrollTop = 0;
+    document.getElementById('progress').style.width =
+      ((current / (total - 1)) * 100) + '%';
+    document.getElementById('slideNum').textContent =
+      (current + 1) + ' / ' + total;
+  }
+
+  document.addEventListener('keydown', function(e) {
+    // Don't navigate if click was inside a spoiler
+    if (e.target.closest && e.target.closest('.spoiler')) return;
+
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+      e.preventDefault(); show(current + 1);
+    }
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+      e.preventDefault(); show(current - 1);
+    }
+    if (e.key === 'Home') { e.preventDefault(); show(0); }
+    if (e.key === 'End')  { e.preventDefault(); show(total - 1); }
+  });
+
+  // Touch support
+  let touchX = 0;
+  document.addEventListener('touchstart', function(e) {
+    if (e.target.closest && e.target.closest('.spoiler')) return;
+    touchX = e.touches[0].clientX;
+  });
+  document.addEventListener('touchend', function(e) {
+    if (e.target.closest && e.target.closest('.spoiler')) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    if (dx < -50) show(current + 1);
+    if (dx >  50) show(current - 1);
+  });
+
+  show(0);
+})();
+</script>
+
+</body>
+</html>
